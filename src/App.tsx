@@ -1,57 +1,53 @@
 /// <reference types="web-bluetooth" />
 
-import {
-  AppBar,
-  Box,
-  Button,
-  ButtonGroup,
-  Toolbar,
-  Typography,
-} from "@mui/material";
-import { useState } from "react";
-import "./App.css";
-import LabeledSlider from "./components/LabeledSlider";
+import { AppBar, Box, Button, ButtonGroup, Toolbar, Typography } from '@mui/material';
+import { useState } from 'react';
+import './App.css';
+import LabeledSlider from './components/LabeledSlider';
+import { pingduino } from './data/pinguino';
 
-const serviceId = "19b10001-e8f2-537e-4f6c-d104768a1214";
-
-const characteristicIds = {
-  score: "19b10001-e8f2-537e-4f6c-d104768a1215",
-  upperMotor: "19b10001-e8f2-537e-4f6c-d104768a1216",
-  lowerMotor: "19b10001-e8f2-537e-4f6c-d104768a1217",
-  turnerMotor: "19b10001-e8f2-537e-4f6c-d104768a1218",
-};
+const motorSliderProps = {
+  valueLabelDisplay: 'auto',
+  marks: true,
+  min: 0,
+  step: 2,
+  max: 50,
+} as const;
 
 function App() {
   const [device, setDevice] = useState<BluetoothDevice | null>(null);
   const [, setServer] = useState<BluetoothRemoteGATTServer | null>(null);
   const [, setService] = useState<BluetoothRemoteGATTService | null>(null);
-  const [characteristic, setCharacteristic] =
-    useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [upperCharacteristic, setUpperCharacteristic] =
-    useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [lowerCharacteristic, setLowerCharacteristic] =
-    useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [turnerCharacteristic, setTurnerCharacteristic] =
-    useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  console.log("device", JSON.stringify(device));
+  const [characteristic, setCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
+  const [upperCharacteristic, setUpperCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
+  const [lowerCharacteristic, setLowerCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
+  const [turnerCharacteristic, setTurnerCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
+  const [pushAngleCharacteristic, setPushAngleCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(
+    null,
+  );
+  console.log('device', JSON.stringify(device));
   const [upperMotorSpeed, setUpperMotorSpeed] = useState(0);
   const [lowerMotorSpeed, setLowerMotorSpeed] = useState(0);
   const [turnerSpeed, setTurnerSpeed] = useState(0);
+  const [pushAngle, setPushAngle] = useState(0);
 
   const onDisconnect = () => {
-    alert("Disconnected");
+    alert('Disconnected');
     setDevice(null);
     setServer(null);
     setService(null);
     setCharacteristic(null);
     setUpperCharacteristic(null);
+    setLowerCharacteristic(null);
+    setTurnerCharacteristic(null);
+    setPushAngleCharacteristic(null);
   };
 
   const onConnectedDevice = async (newDevice: BluetoothDevice) => {
-    console.log("connect to", newDevice.name);
+    console.log('connect to', newDevice.name);
     setDevice(newDevice);
 
-    newDevice.addEventListener("gattserverdisconnected", onDisconnect);
+    newDevice.addEventListener('gattserverdisconnected', onDisconnect);
 
     const server = await newDevice.gatt?.connect();
     if (!server) {
@@ -59,33 +55,29 @@ function App() {
     }
     setServer(server);
 
-    const service = await server.getPrimaryService(serviceId);
-    console.log("service", service);
+    const service = await server.getPrimaryService(pingduino.serviceId);
+    console.log('service', service);
     setService(service);
 
-    const characteristic = await service.getCharacteristic(
-      characteristicIds.score
-    );
-    console.log("characteristic", characteristic);
+    const characteristic = await service.getCharacteristic(pingduino.characteristicIds.score);
+    console.log('characteristic', characteristic);
     setCharacteristic(characteristic);
 
-    const upperCharacteristic = await service.getCharacteristic(
-      characteristicIds.upperMotor
-    );
-    console.log("upperCharacteristic", upperCharacteristic);
+    const upperCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.upperMotor);
+    console.log('upperCharacteristic', upperCharacteristic);
     setUpperCharacteristic(upperCharacteristic);
 
-    const lowerCharacteristic = await service.getCharacteristic(
-      characteristicIds.lowerMotor
-    );
-    console.log("lowerCharacteristic", lowerCharacteristic);
+    const lowerCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.lowerMotor);
+    console.log('lowerCharacteristic', lowerCharacteristic);
     setLowerCharacteristic(lowerCharacteristic);
 
-    const turnerCharacteristic = await service.getCharacteristic(
-      characteristicIds.turnerMotor
-    );
-    console.log("turnerCharacteristic", turnerCharacteristic);
+    const turnerCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.turnerMotor);
+    console.log('turnerCharacteristic', turnerCharacteristic);
     setTurnerCharacteristic(turnerCharacteristic);
+
+    const pushAngleCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.pushAngle);
+    console.log('pushAngleCharacteristic', pushAngleCharacteristic);
+    setPushAngleCharacteristic(pushAngleCharacteristic);
   };
 
   const setValue = (value: number) => {
@@ -98,15 +90,15 @@ function App() {
         //acceptAllDevices: true,
         filters: [
           {
-            services: [serviceId],
+            services: [pingduino.serviceId],
             //name: "Pingduino"
           },
         ],
-        optionalServices: [serviceId],
+        optionalServices: [pingduino.serviceId],
       })
       .then(onConnectedDevice)
       .catch((error) => {
-        console.error("error", error.name, error.message, error.stack);
+        console.error('error', error.name, error.message, error.stack);
       });
   };
 
@@ -117,46 +109,43 @@ function App() {
   };
 
   const handleUpperMotorSpeed = (value: number) => {
-    console.log("value", value);
+    console.log('value', value);
     setUpperMotorSpeed(value);
     upperCharacteristic?.writeValue(new Uint8Array([value]));
   };
 
   const handleLowerMotorSpeed = (value: number) => {
-    console.log("value", value);
+    console.log('value', value);
     setLowerMotorSpeed(value);
     lowerCharacteristic?.writeValue(new Uint8Array([value]));
   };
 
   const handleTurnerSpeed = (value: number) => {
-    console.log("value", value);
+    console.log('value', value);
     setTurnerSpeed(value);
     turnerCharacteristic?.writeValue(new Int8Array([value]));
+  };
+
+  const handlePushAngle = (value: number) => {
+    console.log('value', value);
+    setPushAngle(value);
+    pushAngleCharacteristic?.writeValue(new Int8Array([value]));
   };
 
   return (
     <Box
       sx={{
         flexGrow: 1,
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
+        height: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
       }}
     >
       <AppBar position="static">
         <Toolbar>
-          <Typography
-            variant="h6"
-            component="div"
-            sx={{ flexGrow: 1 }}
-            style={{ lineHeight: "normal" }}
-          >
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }} style={{ lineHeight: 'normal' }}>
             <div>Pingduino</div>
-            {device && (
-              <div style={{ fontSize: "small" }}>
-                Connected to {device.name}
-              </div>
-            )}
+            {device && <div style={{ fontSize: 'small' }}>Connected to {device.name}</div>}
           </Typography>
           {device && (
             <Button color="inherit" onClick={handleDisconnect}>
@@ -165,15 +154,15 @@ function App() {
           )}
         </Toolbar>
       </AppBar>
-      <Box style={{ flex: 1, position: "relative" }}>
+      <Box style={{ flex: 1, position: 'relative' }}>
         {!device && (
           <div
             style={{
               flex: 1,
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              height: '100%',
             }}
           >
             <Button variant="contained" onClick={handleConnect}>
@@ -193,13 +182,9 @@ function App() {
         {upperCharacteristic && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
+              {...motorSliderProps}
               label="Upper motor speed"
               value={upperMotorSpeed}
-              valueLabelDisplay="auto"
-              marks
-              min={0}
-              step={5}
-              max={180}
               onChange={(_e, v) => handleUpperMotorSpeed(v as number)}
             />
             {/* <ButtonGroup variant="contained">
@@ -211,13 +196,9 @@ function App() {
         {lowerCharacteristic && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
+              {...motorSliderProps}
               label="Lower motor speed"
               value={lowerMotorSpeed}
-              valueLabelDisplay="auto"
-              marks
-              min={0}
-              step={5}
-              max={180}
               onChange={(_e, v) => handleLowerMotorSpeed(v as number)}
             />
             {/* <ButtonGroup variant="contained">
@@ -244,6 +225,20 @@ function App() {
             </ButtonGroup> */}
           </div>
         )}
+        {/* {pushAngleCharacteristic && (
+          <div style={{ padding: 32 }}>
+            <LabeledSlider
+              label="Push angle"
+              value={pushAngle}
+              valueLabelDisplay="auto"
+              marks
+              min={0}
+              step={5}
+              max={180}
+              onChange={(_e, v) => handlePushAngle(v as number)}
+            />
+          </div>
+        )} */}
       </Box>
     </Box>
   );
