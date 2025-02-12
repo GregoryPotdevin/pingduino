@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 /// <reference types="web-bluetooth" />
 
 import { AppBar, Box, Button, ButtonGroup, Toolbar, Typography } from '@mui/material';
@@ -22,14 +23,12 @@ function App() {
   const [upperCharacteristic, setUpperCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
   const [lowerCharacteristic, setLowerCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
   const [turnerCharacteristic, setTurnerCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [pushAngleCharacteristic, setPushAngleCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(
-    null,
-  );
+  const [, setPushAngleCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
   console.log('device', JSON.stringify(device));
   const [upperMotorSpeed, setUpperMotorSpeed] = useState(0);
   const [lowerMotorSpeed, setLowerMotorSpeed] = useState(0);
   const [turnerSpeed, setTurnerSpeed] = useState(0);
-  const [pushAngle, setPushAngle] = useState(0);
+  // const [, setPushAngle] = useState(0);
 
   const onDisconnect = () => {
     alert('Disconnected');
@@ -126,11 +125,11 @@ function App() {
     turnerCharacteristic?.writeValue(new Int8Array([value]));
   };
 
-  const handlePushAngle = (value: number) => {
-    console.log('value', value);
-    setPushAngle(value);
-    pushAngleCharacteristic?.writeValue(new Int8Array([value]));
-  };
+  // const handlePushAngle = (value: number) => {
+  //   console.log('value', value);
+  //   setPushAngle(value);
+  //   pushAngleCharacteristic?.writeValue(new Int8Array([value]));
+  // };
 
   return (
     <Box
@@ -179,6 +178,7 @@ function App() {
             </ButtonGroup>
           </div>
         )}
+
         {upperCharacteristic && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
