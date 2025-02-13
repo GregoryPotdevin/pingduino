@@ -2,12 +2,11 @@
 /// <reference types="web-bluetooth" />
 
 import { AppBar, Box, Button, ButtonGroup, ToggleButton, ToggleButtonGroup, Toolbar, Typography } from '@mui/material';
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
+import { useSetState } from 'react-use';
 import './App.css';
 import LabeledSlider from './components/LabeledSlider';
 import { pingduino } from './data/pinguino';
-import { useSetState } from 'react-use';
-import { throttle } from 'lodash';
 import { useWriteValue } from './hooks/useWriteValue';
 
 const motorSliderProps = {
