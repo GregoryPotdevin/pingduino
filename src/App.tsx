@@ -1,11 +1,14 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /// <reference types="web-bluetooth" />
 
-import { AppBar, Box, Button, ButtonGroup, Toolbar, Typography } from '@mui/material';
-import { useState } from 'react';
+import { AppBar, Box, Button, ButtonGroup, ToggleButton, ToggleButtonGroup, Toolbar, Typography } from '@mui/material';
+import { useMemo, useState } from 'react';
 import './App.css';
 import LabeledSlider from './components/LabeledSlider';
 import { pingduino } from './data/pinguino';
+import { useSetState } from 'react-use';
+import { throttle } from 'lodash';
+import { useWriteValue } from './hooks/useWriteValue';
 
 const motorSliderProps = {
   valueLabelDisplay: 'auto',
@@ -15,31 +18,37 @@ const motorSliderProps = {
   max: 50,
 } as const;
 
+const turnSpeeds = [
+  { value: 0, label: 'Stop' },
+  { value: -6, label: 'Slow' },
+  { value: -9, label: 'Normal' },
+  { value: -12, label: 'Fast' },
+  { value: -16, label: 'Very fast' },
+];
+
+type CharacteristicState = {
+  upperMotor?: BluetoothRemoteGATTCharacteristic | null;
+  lowerMotor?: BluetoothRemoteGATTCharacteristic | null;
+  turnerMotor?: BluetoothRemoteGATTCharacteristic | null;
+};
+
 function App() {
   const [device, setDevice] = useState<BluetoothDevice | null>(null);
-  const [, setServer] = useState<BluetoothRemoteGATTServer | null>(null);
-  const [, setService] = useState<BluetoothRemoteGATTService | null>(null);
-  const [characteristic, setCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [upperCharacteristic, setUpperCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [lowerCharacteristic, setLowerCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [turnerCharacteristic, setTurnerCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  const [, setPushAngleCharacteristic] = useState<BluetoothRemoteGATTCharacteristic | null>(null);
-  console.log('device', JSON.stringify(device));
-  const [upperMotorSpeed, setUpperMotorSpeed] = useState(0);
-  const [lowerMotorSpeed, setLowerMotorSpeed] = useState(0);
-  const [turnerSpeed, setTurnerSpeed] = useState(0);
-  // const [, setPushAngle] = useState(0);
+
+  const [characteristics, setCharacteristics] = useSetState<CharacteristicState>({});
+  const [speeds, setSpeeds] = useSetState<{ upperMotor: number; lowerMotor: number; turnerMotor: number }>({
+    upperMotor: 0,
+    lowerMotor: 0,
+    turnerMotor: 0,
+  });
+
+  const throttledWriteValue = useWriteValue(characteristics);
 
   const onDisconnect = () => {
     alert('Disconnected');
     setDevice(null);
-    setServer(null);
-    setService(null);
-    setCharacteristic(null);
-    setUpperCharacteristic(null);
-    setLowerCharacteristic(null);
-    setTurnerCharacteristic(null);
-    setPushAngleCharacteristic(null);
+    setCharacteristics({ lowerMotor: null, upperMotor: null, turnerMotor: null });
+    setSpeeds({ upperMotor: 0, lowerMotor: 0, turnerMotor: 0 });
   };
 
   const onConnectedDevice = async (newDevice: BluetoothDevice) => {
@@ -52,35 +61,21 @@ function App() {
     if (!server) {
       return onDisconnect();
     }
-    setServer(server);
 
     const service = await server.getPrimaryService(pingduino.serviceId);
     console.log('service', service);
-    setService(service);
 
-    const characteristic = await service.getCharacteristic(pingduino.characteristicIds.score);
-    console.log('characteristic', characteristic);
-    setCharacteristic(characteristic);
-
-    const upperCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.upperMotor);
-    console.log('upperCharacteristic', upperCharacteristic);
-    setUpperCharacteristic(upperCharacteristic);
-
-    const lowerCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.lowerMotor);
-    console.log('lowerCharacteristic', lowerCharacteristic);
-    setLowerCharacteristic(lowerCharacteristic);
-
-    const turnerCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.turnerMotor);
-    console.log('turnerCharacteristic', turnerCharacteristic);
-    setTurnerCharacteristic(turnerCharacteristic);
-
-    const pushAngleCharacteristic = await service.getCharacteristic(pingduino.characteristicIds.pushAngle);
-    console.log('pushAngleCharacteristic', pushAngleCharacteristic);
-    setPushAngleCharacteristic(pushAngleCharacteristic);
-  };
-
-  const setValue = (value: number) => {
-    characteristic?.writeValue(new Uint8Array([value]));
+    const characteristics = {
+      upperMotor: await service.getCharacteristic(pingduino.characteristicIds.upperMotor),
+      lowerMotor: await service.getCharacteristic(pingduino.characteristicIds.lowerMotor),
+      turnerMotor: await service.getCharacteristic(pingduino.characteristicIds.turnerMotor),
+    };
+    setCharacteristics(characteristics);
+    setSpeeds({
+      upperMotor: (await characteristics.upperMotor?.readValue())?.getUint8(0) ?? 0,
+      lowerMotor: (await characteristics.lowerMotor?.readValue())?.getUint8(0) ?? 0,
+      turnerMotor: (await characteristics.turnerMotor?.readValue())?.getInt8(0) ?? 0,
+    });
   };
 
   const handleConnect = () => {
@@ -107,29 +102,15 @@ function App() {
     }
   };
 
-  const handleUpperMotorSpeed = (value: number) => {
-    console.log('value', value);
-    setUpperMotorSpeed(value);
-    upperCharacteristic?.writeValue(new Uint8Array([value]));
+  const handleMotorSpeed = (type: keyof CharacteristicState, value: number) => {
+    setSpeeds({ [type]: value });
+    throttledWriteValue(type, new Uint8Array([value]));
   };
 
-  const handleLowerMotorSpeed = (value: number) => {
-    console.log('value', value);
-    setLowerMotorSpeed(value);
-    lowerCharacteristic?.writeValue(new Uint8Array([value]));
+  const handleTurnerSpeed = (type: keyof CharacteristicState, value: number) => {
+    setSpeeds({ [type]: value });
+    throttledWriteValue(type, new Int8Array([value]));
   };
-
-  const handleTurnerSpeed = (value: number) => {
-    console.log('value', value);
-    setTurnerSpeed(value);
-    turnerCharacteristic?.writeValue(new Int8Array([value]));
-  };
-
-  // const handlePushAngle = (value: number) => {
-  //   console.log('value', value);
-  //   setPushAngle(value);
-  //   pushAngleCharacteristic?.writeValue(new Int8Array([value]));
-  // };
 
   return (
     <Box
@@ -170,61 +151,66 @@ function App() {
           </div>
         )}
 
-        {characteristic && (
-          <div style={{ padding: 32 }}>
-            <ButtonGroup variant="contained">
-              <Button onClick={() => setValue(0)}>-</Button>
-              <Button onClick={() => setValue(1)}>+</Button>
-            </ButtonGroup>
-          </div>
-        )}
-
-        {upperCharacteristic && (
+        {characteristics.upperMotor && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
               {...motorSliderProps}
               label="Upper motor speed"
-              value={upperMotorSpeed}
-              onChange={(_e, v) => handleUpperMotorSpeed(v as number)}
+              value={speeds.upperMotor}
+              onChange={(_e, v) => handleMotorSpeed('upperMotor', v as number)}
             />
-            {/* <ButtonGroup variant="contained">
-              <Button onClick={() => handleUpperMotorSpeed(0)}>MIN</Button>
-              <Button onClick={() => handleUpperMotorSpeed(180)}>MAX</Button>
-            </ButtonGroup> */}
+            <ButtonGroup variant="contained">
+              <Button onClick={() => handleMotorSpeed('upperMotor', 0)}>MIN</Button>
+              <Button onClick={() => handleMotorSpeed('upperMotor', 180)}>MAX</Button>
+            </ButtonGroup>
           </div>
         )}
-        {lowerCharacteristic && (
+        {characteristics.lowerMotor && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
               {...motorSliderProps}
               label="Lower motor speed"
-              value={lowerMotorSpeed}
-              onChange={(_e, v) => handleLowerMotorSpeed(v as number)}
+              value={speeds.lowerMotor}
+              onChange={(_e, v) => handleMotorSpeed('lowerMotor', v as number)}
             />
-            {/* <ButtonGroup variant="contained">
-              <Button onClick={() => handleLowerMotorSpeed(0)}>MIN</Button>
-              <Button onClick={() => handleLowerMotorSpeed(180)}>MAX</Button>
-            </ButtonGroup> */}
+            <ButtonGroup variant="contained">
+              <Button onClick={() => handleMotorSpeed('lowerMotor', 0)}>MIN</Button>
+              <Button onClick={() => handleMotorSpeed('lowerMotor', 180)}>MAX</Button>
+            </ButtonGroup>
           </div>
         )}
-        {turnerCharacteristic && (
+        {characteristics.turnerMotor && (
+          <div style={{ padding: 32 }}>
+            <Typography>Ball frequency</Typography>
+            <ToggleButtonGroup
+              color="primary"
+              value={speeds.turnerMotor}
+              exclusive
+              onChange={(_e, v) => handleTurnerSpeed('turnerMotor', v as number)}
+              aria-label="Platform"
+            >
+              {turnSpeeds.map(({ value, label }) => (
+                <ToggleButton key={value} value={value}>
+                  {label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </div>
+        )}
+        {/* {characteristics.turnerMotor && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
               label="Turning speed"
-              value={turnerSpeed}
+              value={speeds.turnerMotor}
               valueLabelDisplay="auto"
               marks
-              min={-100}
-              step={5}
-              max={100}
-              onChange={(_e, v) => handleTurnerSpeed(v as number)}
+              min={-20}
+              step={1}
+              max={20}
+              onChange={(_e, v) => handleTurnerSpeed('turnerMotor', v as number)}
             />
-            {/* <ButtonGroup variant="contained">
-              <Button onClick={() => handleLowerMotorSpeed(0)}>MIN</Button>
-              <Button onClick={() => handleLowerMotorSpeed(180)}>MAX</Button>
-            </ButtonGroup> */}
           </div>
-        )}
+        )} */}
         {/* {pushAngleCharacteristic && (
           <div style={{ padding: 32 }}>
             <LabeledSlider
