@@ -18,27 +18,44 @@ const motorSliderProps = {
 } as const;
 
 const turnSpeeds = [
-  { value: 0, label: 'Stop' },
-  { value: -6, label: 'Slow' },
-  { value: -9, label: 'Normal' },
-  { value: -12, label: 'Fast' },
-  { value: -16, label: 'Very fast' },
+  { value: 0, label: '😴' },
+  { value: -6, label: '🙂' },
+  { value: -8, label: '😊' },
+  { value: -10, label: '😃' },
+  { value: -12, label: '🤪' },
+  { value: -14, label: '🤣' },
+];
+
+enum Mode {
+  FIXED = 0,
+  ALTERNATE = 1,
+  ALTERNATE_CENTER = 2,
+}
+
+const modes = [
+  { value: Mode.FIXED, label: 'Fixed' },
+  { value: Mode.ALTERNATE, label: 'Alternate' },
+  { value: Mode.ALTERNATE_CENTER, label: 'Alternate center' },
 ];
 
 type CharacteristicState = {
   upperMotor?: BluetoothRemoteGATTCharacteristic | null;
   lowerMotor?: BluetoothRemoteGATTCharacteristic | null;
   turnerMotor?: BluetoothRemoteGATTCharacteristic | null;
+  direction?: BluetoothRemoteGATTCharacteristic | null;
+  mode?: BluetoothRemoteGATTCharacteristic | null;
 };
 
 function App() {
   const [device, setDevice] = useState<BluetoothDevice | null>(null);
 
   const [characteristics, setCharacteristics] = useSetState<CharacteristicState>({});
-  const [speeds, setSpeeds] = useSetState<{ upperMotor: number; lowerMotor: number; turnerMotor: number }>({
+  const [speeds, setSpeeds] = useSetState({
     upperMotor: 0,
     lowerMotor: 0,
     turnerMotor: 0,
+    direction: 90,
+    mode: Mode.FIXED,
   });
 
   const throttledWriteValue = useWriteValue(characteristics);
@@ -68,12 +85,16 @@ function App() {
       upperMotor: await service.getCharacteristic(pingduino.characteristicIds.upperMotor),
       lowerMotor: await service.getCharacteristic(pingduino.characteristicIds.lowerMotor),
       turnerMotor: await service.getCharacteristic(pingduino.characteristicIds.turnerMotor),
+      direction: await service.getCharacteristic(pingduino.characteristicIds.direction),
+      mode: await service.getCharacteristic(pingduino.characteristicIds.mode),
     };
     setCharacteristics(characteristics);
     setSpeeds({
       upperMotor: (await characteristics.upperMotor?.readValue())?.getUint8(0) ?? 0,
       lowerMotor: (await characteristics.lowerMotor?.readValue())?.getUint8(0) ?? 0,
       turnerMotor: (await characteristics.turnerMotor?.readValue())?.getInt8(0) ?? 0,
+      direction: (await characteristics.direction?.readValue())?.getInt8(0) ?? 0,
+      mode: (await characteristics.mode?.readValue())?.getUint8(0) ?? Mode.FIXED,
     });
   };
 
@@ -101,12 +122,12 @@ function App() {
     }
   };
 
-  const handleMotorSpeed = (type: keyof CharacteristicState, value: number) => {
+  const handleUint8Value = (type: keyof CharacteristicState, value: number) => {
     setSpeeds({ [type]: value });
     throttledWriteValue(type, new Uint8Array([value]));
   };
 
-  const handleTurnerSpeed = (type: keyof CharacteristicState, value: number) => {
+  const handleInt8Value = (type: keyof CharacteristicState, value: number) => {
     setSpeeds({ [type]: value });
     throttledWriteValue(type, new Int8Array([value]));
   };
@@ -151,41 +172,41 @@ function App() {
         )}
 
         {characteristics.upperMotor && (
-          <div style={{ padding: 32 }}>
+          <div className="PingduinoControl">
             <LabeledSlider
               {...motorSliderProps}
               label="Upper motor speed"
               value={speeds.upperMotor}
-              onChange={(_e, v) => handleMotorSpeed('upperMotor', v as number)}
+              onChange={(_e, v) => handleUint8Value('upperMotor', v as number)}
             />
             <ButtonGroup variant="contained">
-              <Button onClick={() => handleMotorSpeed('upperMotor', 0)}>MIN</Button>
-              <Button onClick={() => handleMotorSpeed('upperMotor', 180)}>MAX</Button>
+              <Button onClick={() => handleUint8Value('upperMotor', 0)}>MIN</Button>
+              <Button onClick={() => handleUint8Value('upperMotor', 180)}>MAX</Button>
             </ButtonGroup>
           </div>
         )}
         {characteristics.lowerMotor && (
-          <div style={{ padding: 32 }}>
+          <div className="PingduinoControl">
             <LabeledSlider
               {...motorSliderProps}
               label="Lower motor speed"
               value={speeds.lowerMotor}
-              onChange={(_e, v) => handleMotorSpeed('lowerMotor', v as number)}
+              onChange={(_e, v) => handleUint8Value('lowerMotor', v as number)}
             />
             <ButtonGroup variant="contained">
-              <Button onClick={() => handleMotorSpeed('lowerMotor', 0)}>MIN</Button>
-              <Button onClick={() => handleMotorSpeed('lowerMotor', 180)}>MAX</Button>
+              <Button onClick={() => handleUint8Value('lowerMotor', 0)}>MIN</Button>
+              <Button onClick={() => handleUint8Value('lowerMotor', 180)}>MAX</Button>
             </ButtonGroup>
           </div>
         )}
         {characteristics.turnerMotor && (
-          <div style={{ padding: 32 }}>
+          <div className="PingduinoControl">
             <Typography>Ball frequency</Typography>
             <ToggleButtonGroup
               color="primary"
               value={speeds.turnerMotor}
               exclusive
-              onChange={(_e, v) => handleTurnerSpeed('turnerMotor', v as number)}
+              onChange={(_e, v) => handleInt8Value('turnerMotor', v as number)}
               aria-label="Platform"
             >
               {turnSpeeds.map(({ value, label }) => (
@@ -196,34 +217,38 @@ function App() {
             </ToggleButtonGroup>
           </div>
         )}
-        {/* {characteristics.turnerMotor && (
-          <div style={{ padding: 32 }}>
+        {characteristics.direction && (
+          <div className="PingduinoControl">
             <LabeledSlider
-              label="Turning speed"
-              value={speeds.turnerMotor}
+              label="Direction"
+              value={speeds.direction}
               valueLabelDisplay="auto"
               marks
-              min={-20}
-              step={1}
-              max={20}
-              onChange={(_e, v) => handleTurnerSpeed('turnerMotor', v as number)}
-            />
-          </div>
-        )} */}
-        {/* {pushAngleCharacteristic && (
-          <div style={{ padding: 32 }}>
-            <LabeledSlider
-              label="Push angle"
-              value={pushAngle}
-              valueLabelDisplay="auto"
-              marks
-              min={0}
+              min={-60}
               step={5}
-              max={180}
-              onChange={(_e, v) => handlePushAngle(v as number)}
+              max={60}
+              onChange={(_e, v) => handleInt8Value('direction', v as number)}
             />
           </div>
-        )} */}
+        )}
+        {characteristics.mode && (
+          <div className="PingduinoControl">
+            <Typography>Mode</Typography>
+            <ToggleButtonGroup
+              color="primary"
+              value={speeds.mode}
+              exclusive
+              onChange={(_e, v) => handleInt8Value('mode', v as number)}
+              aria-label="Platform"
+            >
+              {modes.map(({ value, label }) => (
+                <ToggleButton key={value} value={value}>
+                  {label}
+                </ToggleButton>
+              ))}
+            </ToggleButtonGroup>
+          </div>
+        )}
       </Box>
     </Box>
   );
